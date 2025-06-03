@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualizador Interativo da Arquitetura Airflow</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Calm Harmony (Stone, Slate, Blue, Amber) -->
+    <!-- Application Structure Plan: O design da aplicação é centrado em um diagrama arquitetônico interativo. Em vez de uma leitura linear, o usuário explora a arquitetura clicando nos componentes (Scheduler, Webserver, Executor, Metadata DB). Esta ação carrega dinamicamente conteúdo detalhado em uma área adjacente. Esta abordagem não-linear promove a exploração e a construção de um modelo mental das inter-relações do sistema. A comparação de Executores é tratada com um gráfico interativo e um seletor, e o complexo ciclo de vida da DAG é simplificado em uma animação passo a passo, tornando conceitos abstratos mais tangíveis e fáceis de assimilar. -->
+    <!-- Visualization & Content Choices: 1. Diagrama Arquitetônico (HTML/CSS): Objetivo: Organizar/Relacionar. Método: Caixas e setas estilizadas com Tailwind para representar os componentes e fluxos. Interação: Cliques nos componentes para carregar conteúdo. Justificativa: Atua como o hub de navegação principal, reforçando a estrutura do sistema. 2. Gráfico de Comparação de Executores (Chart.js - Radar): Objetivo: Comparar. Método: Um gráfico de radar para visualizar métricas-chave (escalabilidade, isolamento, complexidade). Interação: Botões para selecionar um executor, atualizando o gráfico e exibindo detalhes. Justificativa: Fornece uma comparação visual rápida e aprofundada. 3. Fluxo de Vida da DAG (HTML/CSS/JS): Objetivo: Mostrar Processo. Método: Uma sequência animada passo a passo que destaca componentes e fluxos no diagrama principal. Interação: Botões "Próximo"/"Anterior". Justificativa: Descomplica um processo complexo em etapas gerenciáveis. 4. Conteúdo Detalhado (HTML/JS - Acordeão): Objetivo: Informar. Método: Seções de conteúdo expansíveis. Interação: Clique nos cabeçalhos. Justificativa: Gerencia a densidade da informação e evita sobrecarga visual. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .active-component {
+            border-color: #3b82f6 !important;
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
+            transform: scale(1.03);
+        }
+        .active-tab {
+            background-color: #3b82f6;
+            color: white;
+        }
+        .flow-highlight {
+            transition: all 0.5s ease-in-out;
+            box-shadow: 0 0 20px rgba(245, 158, 11, 0.7);
+            border-color: #f59e0b !important;
+        }
+        .arrow {
+            position: absolute;
+            background-color: #9ca3af;
+            width: 2px;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+        .arrow.visible { opacity: 1; }
+        .arrow::after {
+            content: '';
+            position: absolute;
+            border: solid #9ca3af;
+            border-width: 0 2px 2px 0;
+            display: inline-block;
+            padding: 4px;
+            transform: rotate(45deg);
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 350px;
+            max-height: 400px;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl md:text-5xl font-bold text-slate-900">Arquitetura Interativa do Apache Airflow</h1>
+            <p class="mt-2 text-lg text-slate-600 max-w-3xl mx-auto">Uma exploração didática dos componentes que orquestram seus workflows.</p>
+        </header>
+
+        <main class="space-y-12">
+            <!-- Architecture Diagram and Content Section -->
+            <section id="architecture-section" class="p-6 bg-white rounded-2xl shadow-lg">
+                 <p class="text-center text-slate-600 mb-6">Clique em um componente no diagrama abaixo para explorar seus detalhes e funcionalidades.</p>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                    <!-- Interactive Diagram -->
+                    <div id="diagram-container" class="relative p-8 rounded-lg bg-slate-50 border border-slate-200 min-h-[400px] flex items-center justify-center">
+                        <div class="grid grid-cols-3 gap-x-4 gap-y-16 w-full max-w-2xl mx-auto items-center">
+                            <!-- Webserver -->
+                            <div id="diagram-webserver" data-component="webserver" class="component-box col-span-1 text-center cursor-pointer p-4 border-2 border-slate-300 bg-white rounded-lg transition-all duration-300">
+                                <span class="text-2xl">🖥️</span>
+                                <h3 class="font-semibold mt-1">Webserver</h3>
+                                <p class="text-xs text-slate-500">Interface do Usuário</p>
+                            </div>
+                            
+                            <!-- Empty Cell -->
+                            <div></div>
+                            
+                            <!-- Scheduler -->
+                            <div id="diagram-scheduler" data-component="scheduler" class="component-box col-span-1 text-center cursor-pointer p-4 border-2 border-slate-300 bg-white rounded-lg transition-all duration-300">
+                                <span class="text-2xl">⏰</span>
+                                <h3 class="font-semibold mt-1">Scheduler</h3>
+                                <p class="text-xs text-slate-500">O Maestro</p>
+                            </div>
+
+                            <!-- Metadata DB -->
+                            <div id="diagram-metadatadb" data-component="metadatadb" class="component-box col-span-3 text-center cursor-pointer p-4 border-2 border-slate-300 bg-white rounded-lg transition-all duration-300 mt-4">
+                                <span class="text-2xl">🗄️</span>
+                                <h3 class="font-semibold mt-1">Metadata Database</h3>
+                                <p class="text-xs text-slate-500">A Memória Central</p>
+                            </div>
+
+                            <!-- Executor -->
+                             <div id="diagram-executor" data-component="executor" class="component-box col-span-3 text-center cursor-pointer p-4 border-2 border-slate-300 bg-white rounded-lg transition-all duration-300 mt-4">
+                                <span class="text-2xl">⚙️</span>
+                                <h3 class="font-semibold mt-1">Executor</h3>
+                                <p class="text-xs text-slate-500">O Motor de Execução</p>
+                            </div>
+                        </div>
+
+                        <!-- Arrows will be added by JS -->
+                    </div>
+
+                    <!-- Dynamic Content -->
+                    <div id="content-display" class="p-1 md:p-4 min-h-[400px] bg-slate-50 rounded-lg">
+                        <!-- Initial state / Selected component content -->
+                    </div>
+                </div>
+            </section>
+
+             <!-- DAG Lifecycle Flow Section -->
+            <section id="lifecycle-section" class="p-6 bg-white rounded-2xl shadow-lg text-center">
+                <h2 class="text-3xl font-bold text-slate-900 mb-2">O Ciclo de Vida de uma DAG</h2>
+                <p class="text-slate-600 mb-6">Veja como os componentes interagem para levar uma DAG da definição à execução.</p>
+                <button id="start-flow-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-lg transition-all">Iniciar Animação</button>
+                <div id="flow-controls" class="hidden mt-4 space-x-4">
+                    <button id="prev-step-btn" class="bg-slate-300 hover:bg-slate-400 text-slate-800 font-bold py-2 px-4 rounded-lg transition-all disabled:opacity-50">Anterior</button>
+                    <span id="step-counter" class="font-semibold text-slate-700">Passo 1 / 7</span>
+                    <button id="next-step-btn" class="bg-slate-300 hover:bg-slate-400 text-slate-800 font-bold py-2 px-4 rounded-lg transition-all">Próximo</button>
+                    <button id="reset-flow-btn" class="text-blue-500 hover:text-blue-700 font-semibold">Resetar</button>
+                </div>
+                <div id="flow-explanation" class="mt-4 text-left p-4 bg-amber-50 border-l-4 border-amber-400 text-amber-800 rounded-r-lg min-h-[80px] hidden">
+                    <!-- Explanation text will be populated here -->
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        const contentData = {
+            initial: {
+                title: 'Bem-vindo ao Explorador Airflow',
+                html: `
+                    <div class="text-center p-8">
+                        <h3 class="text-2xl font-bold text-slate-800 mb-4">Explore a Arquitetura</h3>
+                        <p class="text-slate-600">O Apache Airflow é uma plataforma complexa com vários componentes interdependentes. Este visualizador foi projetado para desmistificar sua arquitetura.</p>
+                        <p class="mt-4 text-slate-600"><strong>Comece clicando em qualquer um dos componentes no diagrama à esquerda</strong> para aprender sobre seu papel, responsabilidades e como ele se encaixa no ecossistema Airflow.</p>
+                    </div>`
+            },
+            scheduler: {
+                title: 'O Scheduler: O Maestro da Orquestração',
+                html: `
+                    <div class="space-y-4">
+                        <p class="text-slate-600">O Scheduler é o coração pulsante do Airflow. Ele é responsável por monitorar todas as suas DAGs e disparar as tarefas assim que suas dependências são atendidas. Pense nele como o maestro que garante que cada músico (tarefa) toque na hora certa.</p>
+                        <div class="accordion">
+                            <h4 class="accordion-header">Função Principal</h4>
+                            <div class="accordion-content">É um serviço persistente que verifica continuamente os agendamentos das DAGs, o estado das tarefas e os limites de concorrência para decidir o que executar em seguida.</div>
+                        </div>
+                        <div class="accordion">
+                            <h4 class="accordion-header">Loop de Agendamento</h4>
+                            <div class="accordion-content">Em um ciclo contínuo, o Scheduler: <br>1. Analisa os arquivos DAG. <br>2. Cria instâncias de DAG (DagRuns) para os agendamentos corretos. <br>3. Avalia quais tarefas estão prontas para rodar. <br>4. Enfileira as tarefas prontas para o Executor.</div>
+                        </div>
+                        <div class="accordion">
+                            <h4 class="accordion-header">Interação com o Metadata DB</h4>
+                            <div class="accordion-content">O Scheduler depende intensamente do Metadata Database para ler o estado atual de todas as tarefas e DAGs e para escrever as atualizações de estado conforme agenda e enfileira novas tarefas.</div>
+                        </div>
+                    </div>`
+            },
+            webserver: {
+                title: 'O Webserver: Sua Janela para os Workflows',
+                html: `
+                    <div class="space-y-4">
+                        <p class="text-slate-600">O Webserver fornece a interface de usuário (UI) rica do Airflow. É através dela que você pode monitorar, acionar e depurar suas DAGs, além de gerenciar configurações do ambiente.</p>
+                        <div class="accordion">
+                            <h4 class="accordion-header">Visualizações Principais</h4>
+                            <div class="accordion-content">Oferece múltiplas visões como a 'Grid' para ver o histórico de execuções, 'Graph' para entender as dependências das tarefas, e 'Gantt' para analisar a duração e sobreposição das tarefas.</div>
+                        </div>
+                        <div class="accordion">
+                            <h4 class="accordion-header">Monitoramento e Logs</h4>
+                            <div class="accordion-content">Permite o acompanhamento em tempo real do progresso das DAGs e o acesso direto aos logs de cada tarefa, o que é fundamental para a depuração de falhas.</div>
+                        </div>
+                        <div class="accordion">
+                            <h4 class="accordion-header">Gerenciamento</h4>
+                            <div class="accordion-content">A UI também é um centro administrativo para gerenciar Conexões a sistemas externos e Variáveis, que são pares chave-valor para configurar suas DAGs dinamicamente.</div>
+                        </div>
+                    </div>`
+            },
+            executor: {
+                title: 'O Executor: O Motor de Execução',
+                html: `
+                    <div class="space-y-4">
+                        <p class="text-slate-600">Enquanto o Scheduler decide *o que* e *quando* executar, o Executor é quem realmente faz o trabalho. A escolha do executor é uma decisão arquitetural crucial que define *como* e *onde* suas tarefas são executadas.</p>
+                        <div class="mt-4">
+                            <h4 class="font-semibold text-lg mb-3 text-slate-800">Compare os Tipos de Executor:</h4>
+                            <div class="flex flex-wrap gap-2 mb-4">
+                                <button data-executor="sequential" class="executor-btn text-sm px-3 py-1 rounded-md bg-slate-200 hover:bg-slate-300">Sequential</button>
+                                <button data-executor="local" class="executor-btn text-sm px-3 py-1 rounded-md bg-slate-200 hover:bg-slate-300">Local</button>
+                                <button data-executor="celery" class="executor-btn text-sm px-3 py-1 rounded-md bg-slate-200 hover:bg-slate-300">Celery</button>
+                                <button data-executor="kubernetes" class="executor-btn text-sm px-3 py-1 rounded-md bg-slate-200 hover:bg-slate-300">Kubernetes</button>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                                <div class="chart-container">
+                                    <canvas id="executor-chart"></canvas>
+                                </div>
+                                <div id="executor-details" class="p-3 bg-white border border-slate-200 rounded-lg min-h-[200px]">
+                                    <p class="text-slate-500">Selecione um executor para ver seus detalhes.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`
+            },
+            metadatadb: {
+                title: 'O Metadata Database: A Memória do Airflow',
+                html: `
+                    <div class="space-y-4">
+                        <p class="text-slate-600">Este banco de dados é a fonte da verdade para o Airflow. Ele armazena o estado de todos os componentes, DAGs, tarefas, execuções e configurações. Sem ele, o Airflow não teria memória.</p>
+                        <div class="accordion">
+                            <h4 class="accordion-header">Informações Armazenadas</h4>
+                            <div class="accordion-content">Guarda tudo: definições de DAGs, estado de cada tarefa (ex: 'running', 'success', 'failed'), variáveis, conexões (com senhas criptografadas), histórico de execuções, permissões de usuários e muito mais.</div>
+                        </div>
+                        <div class="accordion">
+                            <h4 class="accordion-header">Ponto Crítico de Coordenação</h4>
+                            <div class="accordion-content">Todos os outros componentes (Scheduler, Webserver, Workers) leem e escrevem no Metadata DB constantemente. Isso o torna um componente crítico para o desempenho e a estabilidade de todo o ambiente.</div>
+                        </div>
+                        <div class="accordion">
+                            <h4 class="accordion-header">Backends Suportados</h4>
+                            <div class="accordion-content">Embora suporte SQLite para desenvolvimento, ambientes de produção exigem bancos de dados mais robustos como <strong>PostgreSQL</strong> (o mais recomendado) ou <strong>MySQL</strong> para lidar com a concorrência de acessos.</div>
+                        </div>
+                    </div>`
+            }
+        };
+
+        const executorDetailsData = {
+            sequential: {
+                title: 'SequentialExecutor',
+                description: 'Executa uma tarefa de cada vez, no mesmo processo do Scheduler. Simples e ótimo para desenvolvimento, mas não oferece paralelismo. Não use em produção.',
+                stats: [1, 1, 1, 5]
+            },
+            local: {
+                title: 'LocalExecutor',
+                description: 'Executa tarefas em paralelo na mesma máquina do Scheduler, criando processos filhos. Bom para pequenas implantações, mas tarefas pesadas podem afetar o Scheduler.',
+                stats: [3, 2, 2, 4]
+            },
+            celery: {
+                title: 'CeleryExecutor',
+                description: 'Uma solução distribuída que usa uma fila de mensagens (ex: RabbitMQ, Redis) para enviar tarefas a um pool de workers. Altamente escalável e resiliente para produção.',
+                stats: [5, 4, 4, 2]
+            },
+            kubernetes: {
+                title: 'KubernetesExecutor',
+                description: 'Cria um novo Pod no Kubernetes para cada tarefa, oferecendo isolamento máximo de recursos e dependências. Ideal para ambientes cloud-native e cargas de trabalho dinâmicas.',
+                stats: [5, 5, 5, 1]
+            }
+        };
+
+        const lifecycleSteps = [
+            { component: 'user', text: '1. O autor da DAG escreve o código Python e o coloca na pasta de DAGs.' },
+            { component: 'scheduler', text: '2. O DAG Processor (parte do Scheduler) analisa o arquivo e salva a estrutura da DAG no Metadata DB.' },
+            { component: 'scheduler', text: '3. O Scheduler consulta o Metadata DB e, ao encontrar uma DAG pronta para rodar, cria uma DagRun e TaskInstances com estado "scheduled".' },
+            { component: 'executor', text: '4. O Scheduler envia as tarefas para a fila do Executor. O estado da tarefa no Metadata DB muda para "queued".' },
+            { component: 'executor', text: '5. O Executor (ou um de seus workers) pega a tarefa da fila. O estado muda para "running" no Metadata DB.' },
+            { component: 'executor', text: '6. Após a execução, o worker atualiza o estado final da tarefa ("success" ou "failed") no Metadata DB.' },
+            { component: 'webserver', text: '7. Durante todo o processo, o Webserver lê o Metadata DB para exibir o progresso em tempo real na UI.' }
+        ];
+
+        let activeComponent = null;
+        let executorChart = null;
+        let currentFlowStep = -1;
+
+        const contentDisplay = document.getElementById('content-display');
+        const diagramContainer = document.getElementById('diagram-container');
+
+        function updateContent(componentKey) {
+            if (!contentData[componentKey]) return;
+
+            // Update active component style
+            document.querySelectorAll('.component-box').forEach(el => el.classList.remove('active-component'));
+            const activeEl = document.getElementById(`diagram-${componentKey}`);
+            if (activeEl) {
+                activeEl.classList.add('active-component');
+            }
+            activeComponent = componentKey;
+
+            // Update content display
+            const data = contentData[componentKey];
+            let fullHtml = `<h2 class="text-3xl font-bold text-slate-900 mb-4">${data.title}</h2>${data.html}`;
+            contentDisplay.innerHTML = fullHtml;
+
+            // Add event listeners for new content
+            addAccordionListeners();
+            if (componentKey === 'executor') {
+                addExecutorListeners();
+                updateExecutorDetails('sequential'); // Default view
+            }
+        }
+        
+        function addAccordionListeners() {
+            document.querySelectorAll('.accordion-header').forEach(header => {
+                header.addEventListener('click', () => {
+                    const content = header.nextElementSibling;
+                    const isVisible = content.style.display === 'block';
+                    document.querySelectorAll('.accordion-content').forEach(c => c.style.display = 'none');
+                    document.querySelectorAll('.accordion-header').forEach(h => h.classList.remove('bg-slate-200'));
+                    
+                    if (!isVisible) {
+                        content.style.display = 'block';
+                        header.classList.add('bg-slate-200');
+                    }
+                });
+                
+                header.style.cursor = 'pointer';
+                header.classList.add('p-3', 'bg-slate-100', 'rounded-md', 'font-semibold', 'transition-colors');
+                header.nextElementSibling.style.display = 'none';
+                header.nextElementSibling.classList.add('p-3', 'border-l-2', 'border-slate-200', 'mt-1');
+            });
+        }
+        
+        function addExecutorListeners() {
+            document.querySelectorAll('.executor-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const executorKey = e.target.dataset.executor;
+                    updateExecutorDetails(executorKey);
+                });
+            });
+        }
+        
+        function updateExecutorDetails(executorKey) {
+            const details = executorDetailsData[executorKey];
+            if (!details) return;
+
+            document.querySelectorAll('.executor-btn').forEach(b => b.classList.remove('bg-blue-500', 'text-white'));
+            document.querySelector(`.executor-btn[data-executor="${executorKey}"]`).classList.add('bg-blue-500', 'text-white');
+            
+            const detailsContainer = document.getElementById('executor-details');
+            detailsContainer.innerHTML = `
+                <h5 class="font-bold text-lg text-slate-800">${details.title}</h5>
+                <p class="text-sm text-slate-600 mt-1">${details.description}</p>`;
+
+            renderExecutorChart(details.stats, details.title);
+        }
+
+        function renderExecutorChart(data, title) {
+            const ctx = document.getElementById('executor-chart').getContext('2d');
+            const chartData = {
+                labels: ['Escalabilidade', 'Isolamento', 'Complexidade', 'Simplicidade'],
+                datasets: [{
+                    label: title,
+                    data: data,
+                    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                    borderColor: 'rgba(59, 130, 246, 1)',
+                    borderWidth: 2,
+                    pointBackgroundColor: 'rgba(59, 130, 246, 1)',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: 'rgba(59, 130, 246, 1)'
+                }]
+            };
+
+            if (executorChart) {
+                executorChart.destroy();
+            }
+
+            executorChart = new Chart(ctx, {
+                type: 'radar',
+                data: chartData,
+                options: {
+                    maintainAspectRatio: false,
+                    responsive: true,
+                    scales: {
+                        r: {
+                            angleLines: { display: false },
+                            suggestedMin: 0,
+                            suggestedMax: 5,
+                            pointLabels: { font: { size: 12 } },
+                            ticks: { display: false, stepSize: 1 }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                             callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) { label += ': '; }
+                                    if (context.parsed.r !== null) {
+                                        label += context.parsed.r;
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function startLifecycleFlow() {
+            document.getElementById('start-flow-btn').classList.add('hidden');
+            document.getElementById('flow-controls').classList.remove('hidden');
+            document.getElementById('flow-explanation').classList.remove('hidden');
+            currentFlowStep = 0;
+            updateLifecycleStep();
+        }
+
+        function resetLifecycleFlow() {
+            document.getElementById('start-flow-btn').classList.remove('hidden');
+            document.getElementById('flow-controls').classList.add('hidden');
+            document.getElementById('flow-explanation').classList.add('hidden');
+            currentFlowStep = -1;
+            document.querySelectorAll('.flow-highlight').forEach(el => el.classList.remove('flow-highlight'));
+        }
+
+        function updateLifecycleStep() {
+            if (currentFlowStep < 0 || currentFlowStep >= lifecycleSteps.length) {
+                resetLifecycleFlow();
+                return;
+            }
+
+            const step = lifecycleSteps[currentFlowStep];
+            document.getElementById('flow-explanation').textContent = step.text;
+            document.getElementById('step-counter').textContent = `Passo ${currentFlowStep + 1} / ${lifecycleSteps.length}`;
+
+            document.querySelectorAll('.component-box').forEach(el => el.classList.remove('flow-highlight'));
+            const highlightEl = document.querySelector(`[data-component="${step.component}"]`);
+            if (highlightEl) {
+                highlightEl.classList.add('flow-highlight');
+            }
+
+            document.getElementById('prev-step-btn').disabled = currentFlowStep === 0;
+            document.getElementById('next-step-btn').disabled = currentFlowStep === lifecycleSteps.length - 1;
+        }
+
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateContent('initial');
+
+            document.querySelectorAll('.component-box').forEach(box => {
+                box.addEventListener('click', (e) => {
+                    const componentKey = e.currentTarget.dataset.component;
+                    updateContent(componentKey);
+                });
+            });
+
+            document.getElementById('start-flow-btn').addEventListener('click', startLifecycleFlow);
+            document.getElementById('reset-flow-btn').addEventListener('click', resetLifecycleFlow);
+            
+            document.getElementById('next-step-btn').addEventListener('click', () => {
+                if (currentFlowStep < lifecycleSteps.length - 1) {
+                    currentFlowStep++;
+                    updateLifecycleStep();
+                }
+            });
+            
+            document.getElementById('prev-step-btn').addEventListener('click', () => {
+                if (currentFlowStep > 0) {
+                    currentFlowStep--;
+                    updateLifecycleStep();
+                }
+            });
+        });
+
+    </script>
+</body>
+</html>

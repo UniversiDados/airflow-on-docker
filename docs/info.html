@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Infográfico Interativo: Arquitetura do Apache Airflow</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Vibrant Tech (Blue, Orange, Grays) -->
+    <!-- Application Structure Plan: A narrativa visual do infográfico segue uma estrutura lógica para facilitar o entendimento. Inicia-se com uma introdução de alto nível (O que é Airflow), seguida por uma visão geral da arquitetura como peça central. A partir daí, o fluxo se aprofunda nos detalhes: explora cada componente individualmente, oferece uma comparação visual direta dos Executores (um ponto-chave de decisão) e, finalmente, unifica o conhecimento ao ilustrar o ciclo de vida completo de uma DAG. Esta estrutura de "geral para específico e depois para o processo unificado" foi escolhida para construir o conhecimento do usuário de forma incremental e coesa. -->
+    <!-- Visualization & Content Choices: 1. Visão Geral da Arquitetura: Goal: Organize. Method: Diagrama HTML/CSS com Tailwind, usando ícones Unicode para representar componentes e bordas para fluxos. Justification: Fornece um mapa mental instantâneo e central da interação dos componentes, sem usar SVG/Mermaid. 2. Pilares da Arquitetura: Goal: Inform. Method: Cartões de informação (HTML/CSS) com ícones e texto conciso. Justification: Divide informações complexas em blocos digeríveis. 3. Comparativo de Executores: Goal: Compare. Method: Gráfico de Radar (Chart.js/Canvas). Justification: Ideal para comparar múltiplas entidades (Executors) em vários eixos qualitativos (escalabilidade, isolamento, complexidade), tornando a escolha mais intuitiva. 4. Fluxo de Vida de uma DAG: Goal: Organize (Process). Method: Fluxograma vertical (HTML/CSS) com etapas numeradas. Justification: Descomplica um processo de múltiplos passos em uma narrativa visual linear e fácil de seguir. NO SVG/Mermaid used. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #F9FAFB;
+            color: #1F2937;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 400px;
+            max-height: 450px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 450px;
+            }
+        }
+        .flow-line {
+            width: 2px;
+            background-color: #D1D5DB;
+            flex-grow: 1;
+        }
+        .flow-dot {
+            width: 1rem;
+            height: 1rem;
+            border-radius: 9999px;
+            background-color: #2563EB;
+            border: 2px solid white;
+        }
+    </style>
+</head>
+<body class="antialiased">
+    <div class="container mx-auto px-4 py-8 md:py-12">
+        
+        <header class="text-center mb-12 md:mb-16">
+            <h1 class="text-4xl md:text-5xl font-extrabold text-gray-900 leading-tight">
+                Anatomia do <span class="text-blue-600">Apache Airflow</span>
+            </h1>
+            <p class="mt-4 max-w-3xl mx-auto text-lg md:text-xl text-gray-600">
+                Um mergulho visual na arquitetura que orquestra os pipelines de dados mais complexos do mundo.
+            </p>
+        </header>
+
+        <section id="overview" class="mb-16">
+            <div class="bg-white rounded-2xl shadow-xl p-6 md:p-10">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                    <div>
+                        <h2 class="text-3xl font-bold text-gray-800">Os 4 Pilares da Orquestração</h2>
+                        <p class="mt-4 text-gray-600">
+                            A arquitetura do Airflow é modular, composta por quatro serviços principais que trabalham em conjunto. O banco de dados de metadados atua como o cérebro central, mantendo o estado de tudo, enquanto o Scheduler, o Webserver e os Executors realizam o trabalho de agendamento, visualização e execução.
+                        </p>
+                    </div>
+                    <div class="relative min-h-[300px] flex items-center justify-center p-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50">
+                        <div class="grid grid-cols-3 gap-x-4 gap-y-12 items-center w-full max-w-md">
+                            <div class="col-span-1 text-center">
+                                <div class="p-4 bg-blue-100 rounded-xl">
+                                    <span class="text-4xl">🖥️</span>
+                                    <h4 class="font-bold mt-2">Webserver</h4>
+                                </div>
+                            </div>
+                            <div class="col-span-1"></div>
+                            <div class="col-span-1 text-center">
+                                <div class="p-4 bg-blue-100 rounded-xl">
+                                    <span class="text-4xl">⏰</span>
+                                    <h4 class="font-bold mt-2">Scheduler</h4>
+                                </div>
+                            </div>
+                            <div class="col-span-3 text-center">
+                                <div class="p-4 bg-orange-100 rounded-xl border-2 border-orange-400">
+                                    <span class="text-4xl">🗄️</span>
+                                    <h4 class="font-bold mt-2">Metadata DB</h4>
+                                    <p class="text-xs text-orange-800">Fonte da Verdade</p>
+                                </div>
+                            </div>
+                            <div class="col-span-3 text-center">
+                                <div class="p-4 bg-blue-100 rounded-xl">
+                                    <span class="text-4xl">⚙️</span>
+                                    <h4 class="font-bold mt-2">Executor</h4>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="components-deep-dive" class="mb-16">
+            <h2 class="text-3xl font-bold text-center mb-10">Conheça os Componentes</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                <div class="bg-white p-6 rounded-xl shadow-lg hover:shadow-2xl transition-shadow duration-300">
+                    <div class="text-3xl mb-4">⏰</div>
+                    <h3 class="font-bold text-xl text-gray-800">Scheduler</h3>
+                    <p class="mt-2 text-gray-600">O coração do Airflow. Monitora as DAGs, verifica dependências e dispara tarefas no momento certo. É o maestro da orquestra.</p>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-lg hover:shadow-2xl transition-shadow duration-300">
+                    <div class="text-3xl mb-4">🖥️</div>
+                    <h3 class="font-bold text-xl text-gray-800">Webserver</h3>
+                    <p class="mt-2 text-gray-600">Sua janela para os workflows. Fornece a UI para monitorar, depurar e gerenciar DAGs, conexões e variáveis.</p>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-lg hover:shadow-2xl transition-shadow duration-300">
+                    <div class="text-3xl mb-4">⚙️</div>
+                    <h3 class="font-bold text-xl text-gray-800">Executor</h3>
+                    <p class="mt-2 text-gray-600">O motor de execução. Recebe tarefas do Scheduler e as executa. A escolha do executor define a escalabilidade e o isolamento.</p>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-lg hover:shadow-2xl transition-shadow duration-300">
+                    <div class="text-3xl mb-4">🗄️</div>
+                    <h3 class="font-bold text-xl text-gray-800">Metadata DB</h3>
+                    <p class="mt-2 text-gray-600">A memória central. Armazena o estado de todas as tarefas, DAGs, variáveis e conexões. É a fonte da verdade para todos os componentes.</p>
+                </div>
+            </div>
+        </section>
+        
+        <section id="executor-comparison" class="mb-16">
+            <div class="bg-white rounded-2xl shadow-xl p-6 md:p-10">
+                 <h2 class="text-3xl font-bold text-center text-gray-800">Qual Executor Usar?</h2>
+                 <p class="mt-2 max-w-2xl mx-auto text-center text-gray-600">A escolha do executor é a decisão de arquitetura mais crítica no Airflow, impactando diretamente a escalabilidade e a complexidade. Este gráfico compara os tipos mais comuns.</p>
+                <div class="chart-container mt-8">
+                    <canvas id="executorRadarChart"></canvas>
+                </div>
+                 <p class="mt-4 text-xs text-center text-gray-500">O gráfico avalia cada executor em eixos-chave, onde um valor maior (mais distante do centro) indica uma característica mais forte. Por exemplo, o KubernetesExecutor tem a maior pontuação em "Isolamento" e "Escalabilidade".</p>
+            </div>
+        </section>
+
+        <section id="dag-lifecycle">
+            <h2 class="text-3xl font-bold text-center mb-10">O Ciclo de Vida de uma DAG</h2>
+            <p class="mt-2 max-w-2xl mx-auto text-center text-gray-600 mb-12">Da definição em código à execução bem-sucedida, veja como os componentes colaboram em um fluxo contínuo.</p>
+            
+            <div class="flex flex-col items-center">
+                <!-- Step 1 -->
+                <div class="flex items-start w-full max-w-2xl">
+                    <div class="flex flex-col items-center mr-4">
+                        <div class="flow-dot shadow-md"></div>
+                        <div class="flow-line"></div>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-md mb-8 w-full">
+                        <span class="font-bold text-blue-600">PASSO 1: Definição</span>
+                        <p class="mt-1 text-gray-700">Um desenvolvedor escreve uma DAG em Python e a coloca na pasta de DAGs.</p>
+                    </div>
+                </div>
+
+                <!-- Step 2 -->
+                <div class="flex items-start w-full max-w-2xl">
+                    <div class="flex flex-col items-center mr-4">
+                        <div class="flow-dot shadow-md"></div>
+                        <div class="flow-line"></div>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-md mb-8 w-full">
+                        <span class="font-bold text-blue-600">PASSO 2: Parsing</span>
+                        <p class="mt-1 text-gray-700">O <strong>Scheduler</strong> (ou DAG Processor) analisa o arquivo e salva a estrutura da DAG no <strong>Metadata DB</strong>.</p>
+                    </div>
+                </div>
+
+                <!-- Step 3 -->
+                <div class="flex items-start w-full max-w-2xl">
+                    <div class="flex flex-col items-center mr-4">
+                        <div class="flow-dot shadow-md"></div>
+                        <div class="flow-line"></div>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-md mb-8 w-full">
+                        <span class="font-bold text-blue-600">PASSO 3: Agendamento</span>
+                        <p class="mt-1 text-gray-700">O <strong>Scheduler</strong> cria uma DagRun e define o estado das tarefas como `scheduled` no <strong>Metadata DB</strong>.</p>
+                    </div>
+                </div>
+                
+                <!-- Step 4 -->
+                <div class="flex items-start w-full max-w-2xl">
+                    <div class="flex flex-col items-center mr-4">
+                        <div class="flow-dot shadow-md"></div>
+                        <div class="flow-line"></div>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-md mb-8 w-full">
+                        <span class="font-bold text-blue-600">PASSO 4: Enfileiramento</span>
+                        <p class="mt-1 text-gray-700">O <strong>Scheduler</strong> envia a tarefa para o <strong>Executor</strong>. O estado muda para `queued`.</p>
+                    </div>
+                </div>
+                
+                <!-- Step 5 -->
+                <div class="flex items-start w-full max-w-2xl">
+                    <div class="flex flex-col items-center mr-4">
+                        <div class="flow-dot shadow-md"></div>
+                        <div class="flow-line"></div>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-md mb-8 w-full">
+                        <span class="font-bold text-blue-600">PASSO 5: Execução</span>
+                        <p class="mt-1 text-gray-700">O <strong>Executor</strong> pega a tarefa, a executa e atualiza o estado para `running`.</p>
+                    </div>
+                </div>
+
+                <!-- Step 6 -->
+                <div class="flex items-start w-full max-w-2xl">
+                    <div class="flex flex-col items-center mr-4">
+                        <div class="flow-dot shadow-md"></div>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-md mb-8 w-full">
+                        <span class="font-bold text-blue-600">PASSO 6: Conclusão</span>
+                        <p class="mt-1 text-gray-700">A tarefa termina e seu estado final (`success`/`failed`) é gravado no <strong>Metadata DB</strong>. O <strong>Webserver</strong> exibe o resultado.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const ctx = document.getElementById('executorRadarChart').getContext('2d');
+
+            const data = {
+                labels: [
+                    'Escalabilidade', 
+                    'Isolamento de Recursos', 
+                    ['Complexidade de', 'Configuração'], 
+                    'Paralelismo', 
+                    'Simplicidade'
+                ],
+                datasets: [
+                    {
+                        label: 'Sequential',
+                        data: [1, 1, 1, 1, 5],
+                        fill: true,
+                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                        borderColor: 'rgb(255, 99, 132)',
+                        pointBackgroundColor: 'rgb(255, 99, 132)',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: 'rgb(255, 99, 132)'
+                    }, 
+                    {
+                        label: 'Local',
+                        data: [2, 2, 2, 3, 4],
+                        fill: true,
+                        backgroundColor: 'rgba(255, 159, 64, 0.2)',
+                        borderColor: 'rgb(255, 159, 64)',
+                        pointBackgroundColor: 'rgb(255, 159, 64)',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: 'rgb(255, 159, 64)'
+                    },
+                    {
+                        label: 'Celery',
+                        data: [4, 3, 4, 5, 2],
+                        fill: true,
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        borderColor: 'rgb(75, 192, 192)',
+                        pointBackgroundColor: 'rgb(75, 192, 192)',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: 'rgb(75, 192, 192)'
+                    },
+                    {
+                        label: 'Kubernetes',
+                        data: [5, 5, 5, 5, 1],
+                        fill: true,
+                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        borderColor: 'rgb(54, 162, 235)',
+                        pointBackgroundColor: 'rgb(54, 162, 235)',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: 'rgb(54, 162, 235)'
+                    }
+                ]
+            };
+            
+            const executorRadarChart = new Chart(ctx, {
+                type: 'radar',
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    elements: {
+                        line: {
+                            borderWidth: 3
+                        }
+                    },
+                    scales: {
+                        r: {
+                            angleLines: {
+                                display: false
+                            },
+                            suggestedMin: 0,
+                            suggestedMax: 5,
+                            pointLabels: {
+                                font: {
+                                    size: 14,
+                                    weight: '500'
+                                },
+                                color: '#4B5563'
+                            },
+                            ticks: {
+                                backdropColor: 'rgba(255, 255, 255, 0.75)',
+                                stepSize: 1
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                title: function(tooltipItems) {
+                                    const item = tooltipItems[0];
+                                    let label = item.chart.data.labels[item.dataIndex];
+                                    if (Array.isArray(label)) {
+                                      return label.join(' ');
+                                    } else {
+                                      return label;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        });
+    </script>
+
+</body>
+</html>
