@@ -70,10 +70,12 @@ x-airflow-common:
     # for other purpose (development, test and especially production usage) build/extend Airflow image.
     _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}
   volumes:
+    - ${AIRFLOW_PROJ_DIR:-.}/data:/opt/airflow/data
     - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
     - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
     - ${AIRFLOW_PROJ_DIR:-.}/config:/opt/airflow/config
     - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
+    - ${AIRFLOW_PROJ_DIR:-.}/scripts:/opt/airflow/scripts
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     &airflow-common-depends-on
@@ -115,6 +117,7 @@ services:
     command: webserver
     ports:
       - "8080:8080"
+    build: .
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
       interval: 30s
@@ -130,6 +133,7 @@ services:
   airflow-scheduler:
     <<: *airflow-common
     command: scheduler
+    build: .
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8974/health"]
       interval: 30s
@@ -145,6 +149,7 @@ services:
   airflow-worker:
     <<: *airflow-common
     command: celery worker
+    build: .
     healthcheck:
       # yamllint disable rule:line-length
       test:
@@ -168,6 +173,7 @@ services:
   airflow-triggerer:
     <<: *airflow-common
     command: triggerer
+    build: .
     healthcheck:
       test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"']
       interval: 30s
@@ -184,6 +190,7 @@ services:
     <<: *airflow-common
     entrypoint: /bin/bash
     # yamllint disable rule:line-length
+    build: .
     command:
       - -c
       - |
