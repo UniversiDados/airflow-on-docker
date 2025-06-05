@@ -4,16 +4,11 @@ from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOpe
 from airflow.operators.python import PythonOperator
 from airflow.utils.dates import days_ago
 import os
+import sys
+import importlib.util
+import subprocess
 
-# Define o diretório base para os dados. No Docker, este caminho deve ser acessível pelo Airflow e Spark.
-# Se estiver usando volumes Docker, ajuste conforme necessário.
 BASE_DATA_PATH = "/opt/airflow/data/delta" # Caminho dentro do container Airflow
-# BASE_DATA_PATH_HOST = "./data/delta" # Caminho no host, se mapeado para o de cima
-
-# Garante que os diretórios base existam no worker/scheduler Airflow (para o PythonOperator)
-# Para SparkSubmitOperator, o Spark se encarrega de criar no HDFS/local se não existir.
-# No entanto, para caminhos locais, é bom garantir no script Python.
-# Os scripts PySpark já contêm os.makedirs() para os output_paths.
 
 default_args = {
     'owner': 'airflow',
@@ -41,21 +36,32 @@ with DAG(
     - **Carga Final**: Salva o DataFrame enriquecido como um 'relatório' final.
     """
 ) as dag:
-
-    # Caminhos para os scripts e dados
-    # Ajuste o caminho para os scripts se o seu diretório de DAGs não for a raiz do projeto
     scripts_path = "/opt/airflow/scripts" # Caminho dentro do container Airflow
 
-    raw_json_path = os.path.join(BASE_DATA_PATH, "raw_countries", "countries.json")
+    raw_json_path = os.path.join(BASE_DATA_PATH, "countries.json")
     processed_countries_delta_path = os.path.join(BASE_DATA_PATH, "processed_countries")
     economic_data_delta_path = os.path.join(BASE_DATA_PATH, "economic_data")
     enriched_countries_delta_path = os.path.join(BASE_DATA_PATH, "enriched_countries")
     regional_stats_delta_path = os.path.join(BASE_DATA_PATH, "regional_stats")
     final_report_delta_path = os.path.join(BASE_DATA_PATH, "final_countries_report")
 
+    def extract_api_data_callable(output_path):
+        """
+        Python callable to run the extract_api_data script.
+        """
+        script_path = "/opt/airflow/scripts/01_extract_api_data.py"
+        
+        spec = importlib.util.spec_from_file_location("extract_api_data", script_path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["extract_api_data"] = module
+        spec.loader.exec_module(module)
+        
+        module.extract_data("https://restcountries.com/v3.1/all", output_path)
+
     extract_api_data = PythonOperator(
         task_id='extract_api_data',
-        python_callable=lambda: os.system(f"python {scripts_path}/01_extract_api_data.py --output_path {raw_json_path}"),
+        python_callable=extract_api_data_callable,
+        op_kwargs={'output_path': raw_json_path},
         doc_md="""
         #### Tarefa de Extração da API
         Executa o script Python `01_extract_api_data.py` para buscar dados da API REST Countries
@@ -72,6 +78,11 @@ with DAG(
         task_id='process_countries_data',
         application=f'{scripts_path}/02_process_countries_data.py',
         conn_id='spark_default', # Ajuste se necessário
+        conf={
+            'spark.jars.packages': 'io.delta:delta-core_2.12:2.4.0',
+            'spark.sql.extensions': 'io.delta.sql.DeltaSparkSessionExtension',
+            'spark.sql.catalog.spark_catalog': 'org.apache.spark.sql.delta.catalog.DeltaCatalog'
+        },
         application_args=[
             '--input_path', raw_json_path,
             '--output_path_delta', processed_countries_delta_path
@@ -86,56 +97,62 @@ with DAG(
 
     create_economic_data = SparkSubmitOperator(
         task_id='create_economic_data',
-        application=f'{scripts_path}/03_create_economic_data.py',
-        conn_id='spark_default', # Ajuste se necessário
+        application='/opt/airflow/scripts/03_create_economic_data.py',
+        conn_id='spark_default',
+        verbose=True,
+        conf={
+            'spark.jars.packages': 'io.delta:delta-core_2.12:2.4.0',
+            'spark.sql.extensions': 'io.delta.sql.DeltaSparkSessionExtension',
+            'spark.sql.catalog.spark_catalog': 'org.apache.spark.sql.delta.catalog.DeltaCatalog'
+        },
         application_args=[
-            '--output_path_delta', economic_data_delta_path
-        ],
-        doc_md="""
-        #### Tarefa de Criação de Dados Econômicos
-        Executa o script PySpark `03_create_economic_data.py`.
-        Cria um DataFrame simulado com dados econômicos (PIB per capita, IDH)
-        e salva em formato Delta Lake.
-        """
+            '--country_codes_path', '/opt/airflow/data/country_codes.txt',
+            '--output_path_delta', '/opt/airflow/data/delta/economic_data'
+        ]
     )
 
     enrich_countries_data = SparkSubmitOperator(
         task_id='enrich_countries_data',
-        application=f'{scripts_path}/04_enrich_countries_data.py',
-        conn_id='spark_default', # Ajuste se necessário
+        application='/opt/airflow/scripts/04_enrich_countries_data.py',
+        conn_id='spark_default',
+        verbose=True,
+        conf={
+            'spark.jars.packages': 'io.delta:delta-core_2.12:2.4.0',
+            'spark.sql.extensions': 'io.delta.sql.DeltaSparkSessionExtension',
+            'spark.sql.catalog.spark_catalog': 'org.apache.spark.sql.delta.catalog.DeltaCatalog'
+        },
         application_args=[
-            '--processed_countries_path', processed_countries_delta_path,
-            '--economic_data_path', economic_data_delta_path,
-            '--output_path_delta', enriched_countries_delta_path
-        ],
-        doc_md="""
-        #### Tarefa de Enriquecimento de Dados
-        Executa o script PySpark `04_enrich_countries_data.py`.
-        Faz o join dos dados de países processados com os dados econômicos simulados
-        e salva o resultado em formato Delta Lake.
-        """
+            '--countries_path', '/opt/airflow/data/delta/processed_countries',
+            '--economic_path', '/opt/airflow/data/delta/economic_data',
+            '--output_path', '/opt/airflow/data/delta/enriched_countries'
+        ]
     )
 
     aggregate_regional_stats = SparkSubmitOperator(
         task_id='aggregate_regional_stats',
-        application=f'{scripts_path}/05_aggregate_regional_stats.py',
-        conn_id='spark_default', # Ajuste se necessário
+        application='/opt/airflow/scripts/05_aggregate_regional_stats.py',
+        conn_id='spark_default',
+        verbose=True,
+        conf={
+            'spark.jars.packages': 'io.delta:delta-core_2.12:2.4.0',
+            'spark.sql.extensions': 'io.delta.sql.DeltaSparkSessionExtension',
+            'spark.sql.catalog.spark_catalog': 'org.apache.spark.sql.delta.catalog.DeltaCatalog'
+        },
         application_args=[
-            '--enriched_countries_path', enriched_countries_delta_path,
-            '--output_path_delta', regional_stats_delta_path
-        ],
-        doc_md="""
-        #### Tarefa de Agregação de Estatísticas Regionais
-        Executa o script PySpark `05_aggregate_regional_stats.py`.
-        Agrega os dados enriquecidos para calcular estatísticas médias (IDH, PIB, densidade) por região
-        e salva o resultado em formato Delta Lake.
-        """
+            '--input_path', '/opt/airflow/data/delta/enriched_countries',
+            '--output_path', '/opt/airflow/data/delta/regional_stats'
+        ]
     )
 
     load_final_data = SparkSubmitOperator(
         task_id='load_final_data',
         application=f'{scripts_path}/06_load_final_data.py',
-        conn_id='spark_default', # Ajuste se necessário
+        conn_id='spark_default',
+        conf={
+            'spark.jars.packages': 'io.delta:delta-core_2.12:2.4.0',
+            'spark.sql.extensions': 'io.delta.sql.DeltaSparkSessionExtension',
+            'spark.sql.catalog.spark_catalog': 'org.apache.spark.sql.delta.catalog.DeltaCatalog'
+        },
         application_args=[
             '--enriched_countries_path', enriched_countries_delta_path,
             '--final_report_path_delta', final_report_delta_path
@@ -143,8 +160,7 @@ with DAG(
         doc_md="""
         #### Tarefa de Carga Final
         Executa o script PySpark `06_load_final_data.py`.
-        Simula a carga dos dados enriquecidos de países para uma tabela final de 'relatório',
-        salvando em formato Delta Lake.
+        Carrega os dados finais e salva em formato Delta Lake.
         """
     )
 
