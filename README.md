@@ -95,8 +95,9 @@ docker compose up airflow-init
 ## 🎯 Passo 5: Executar o Airflow
 
 ```bash
-docker compose up -d
+docker compose up -d --build
 ```
+
 **O que isso faz:** Inicia todos os serviços do Airflow em segundo plano (modo detached).
 
 **Aguarde:** Cerca de 2-3 minutos para todos os serviços inicializarem completamente.
