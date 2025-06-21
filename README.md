@@ -155,6 +155,26 @@ meu-projeto-airflow/
 3. **Execute workflows:** Ative e execute os DAGs de exemplo
 4. **Monitore logs:** Use a interface para acompanhar execuções
 
+## ✨ Configurando Conexões
+
+Para que seus DAGs possam interagir com outros serviços, como o Spark, você precisa configurar as conexões na interface do Airflow.
+
+### Conexão com Spark (Local)
+
+1.  Na interface do Airflow, vá para **Admin -> Connections**.
+2.  Clique no botão `+` para adicionar uma nova conexão.
+3.  Preencha o formulário com os seguintes valores:
+    -   **Connection Id**: `spark_default`
+    -   **Connection Type**: `Spark`
+    -   **Description**: `Conexão local com Spark via spark-submit`
+    -   **Host**: `local[*]`
+    -   **Deploy mode**: `client`
+    -   **Spark binary**: `spark-submit`
+4.  Os outros campos podem ser deixados com seus valores padrão.
+5.  Clique em **Save**.
+
+Com esta configuração, você poderá executar tarefas do tipo `SparkSubmitOperator` em sua máquina local.
+
 ## 🆘 Solução de Problemas Comuns
 
 ### Problema: "Permission denied" no Linux
